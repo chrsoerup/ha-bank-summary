@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.pem
+*.db
+bank_summary/data/
+reports/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
