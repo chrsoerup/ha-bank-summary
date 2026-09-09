@@ -50,7 +50,7 @@ Add one of these to `rules.yaml` to categorise similar transactions in future:
 - {{ u.booking_date }} — {{ u.counterparty_name or u.remittance_text or "?" }} — \
 {{ "%.2f"|format(u.amount) }} {{ currency }}
   ```yaml
-  {{ u.stub }}
+  {{ u.stub | indent(2, first=False) }}
   ```
 {% endfor %}
 {%- else -%}

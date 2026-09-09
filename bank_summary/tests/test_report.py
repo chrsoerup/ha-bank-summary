@@ -59,3 +59,19 @@ def test_empty_month_renders_without_error(tmp_path: Path) -> None:
     report = render_month(store, 2026, 6)
     assert "Bank summary — 2026-06" in report
     assert "None — nice." in report
+
+
+def test_uncategorised_rule_stub_is_valid_yaml(tmp_path: Path) -> None:
+    import yaml
+
+    store = _store(tmp_path)
+    store.upsert_transaction("acc-1", _txn("2026-07-10", "-30.00", "DBIT", "e1"))
+
+    report = render_month(store, 2026, 7)
+    fence_start = report.index("```yaml")
+    fence_end = report.index("```", fence_start + len("```yaml"))
+    stub_lines = report[fence_start + len("```yaml") : fence_end].strip("\n").splitlines()
+    stub_yaml = "\n".join(line[2:] for line in stub_lines)  # strip the fence's own 2-space indent
+
+    parsed = yaml.safe_load(stub_yaml)
+    assert parsed == [{"category": "TODO", "match": {"counterparty_regex": "(?i)Shop"}}]
