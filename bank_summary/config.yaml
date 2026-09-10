@@ -1,5 +1,5 @@
 name: Bank Summary
-version: "0.1.0"
+version: "0.1.1"
 slug: bank_summary
 description: >-
   Syncs transactions from a personal bank account via Enable Banking, categorises them, publishes

@@ -7,6 +7,7 @@ export BANK_SUMMARY_ASPSP_NAME
 export BANK_SUMMARY_ASPSP_COUNTRY
 export BANK_SUMMARY_ENVIRONMENT
 export BANK_SUMMARY_REDIRECT_URL
+export BANK_SUMMARY_ACCOUNT_UID
 export BANK_SUMMARY_CURRENCY
 export BANK_SUMMARY_SYNC_INTERVAL_HOURS
 export BANK_SUMMARY_CONSENT_EXPIRING_SOON_DAYS
@@ -18,6 +19,7 @@ BANK_SUMMARY_ASPSP_NAME=$(bashio::config 'aspsp_name')
 BANK_SUMMARY_ASPSP_COUNTRY=$(bashio::config 'aspsp_country')
 BANK_SUMMARY_ENVIRONMENT=$(bashio::config 'environment')
 BANK_SUMMARY_REDIRECT_URL=$(bashio::config 'redirect_url')
+BANK_SUMMARY_ACCOUNT_UID=$(bashio::config 'account_uid')
 BANK_SUMMARY_CURRENCY=$(bashio::config 'currency')
 BANK_SUMMARY_SYNC_INTERVAL_HOURS=$(bashio::config 'sync_interval_hours')
 BANK_SUMMARY_CONSENT_EXPIRING_SOON_DAYS=$(bashio::config 'consent_expiring_soon_days')

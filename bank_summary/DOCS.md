@@ -26,10 +26,13 @@ Home Assistant dashboard, and archives a per-month Markdown report.
 
 1. Add this repository to **Settings → Add-ons → Add-on Store → ⋮ → Repositories**.
 2. Install **Bank Summary** and open its **Configuration** tab.
-3. Upload `<app-id>.pem` to `/addon_configs/bank_summary/` (via the **Samba share** or **File
-   editor** add-on), then set:
+3. Set:
    - `application_id` — your Enable Banking application ID.
-   - `private_key_path` — the filename you uploaded, e.g. `enablebanking_private_key.pem`.
+   - `private_key_path` — the filename the `.pem` will be stored under in
+     `/addon_configs/bank_summary/`, e.g. `enablebanking_private_key.pem`. You don't need to copy
+     the file over yourself: after starting the add-on, open its **Web UI** and paste the key's
+     contents into the *Enable Banking private key* form (it's written owner-read-only). If you'd
+     rather upload the file directly, the **Samba share** or **File editor** add-on works too.
    - `aspsp_country` — ISO country code of your bank (e.g. `DK`).
    - `redirect_url` — the webhook URL from step 2 above.
    - `environment` — `sandbox` while testing, `production` once you're ready to link the real

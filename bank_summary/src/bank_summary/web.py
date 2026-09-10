@@ -8,14 +8,17 @@ a real domain, which Ingress URLs are not) — a Home Assistant automation catch
 
 from __future__ import annotations
 
+import html
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import parse_qs
 
 import httpx
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from cryptography.hazmat.primitives import serialization
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from pydantic import BaseModel
 
 from .config import Settings
@@ -83,9 +86,60 @@ def index() -> str:
       <p><a href="connect">Connect / re-authorise bank account</a></p>
       <h2>Reports</h2>
       <ul>{report_items or "<li>None yet</li>"}</ul>
+      <h2>Enable Banking private key</h2>
+      {_private_key_section(settings)}
     </body>
     </html>
     """
+
+
+def _private_key_section(settings: Settings) -> str:
+    """Key status plus a paste form — the only way to get the .pem onto HA OS without Samba/SSH."""
+    path = settings.private_key_path
+    if path is None:
+        return "<p>Set the <code>private_key_path</code> option first.</p>"
+    if path.is_file():
+        status = (
+            f"<p>Installed at <code>{html.escape(str(path))}</code>. Paste below to replace it.</p>"
+        )
+    else:
+        status = (
+            f"<p><strong>Missing</strong> — expected at <code>{html.escape(str(path))}</code>. "
+            f"Paste the contents of the <code>.pem</code> you downloaded from Enable Banking:</p>"
+        )
+    return f"""{status}
+      <form method="post" action="private-key">
+        <textarea name="pem" rows="12" cols="72" required
+          placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
+        ></textarea>
+        <p><button type="submit">Save private key</button></p>
+      </form>"""
+
+
+@app.post("/private-key")
+async def save_private_key(request: Request) -> RedirectResponse:
+    """Writes a pasted PEM to `private_key_path`, owner-read-only, after checking it parses."""
+    settings = _settings()
+    if settings.private_key_path is None:
+        raise HTTPException(status_code=400, detail="private_key_path option is not set")
+
+    # Plain urlencoded form; parsed by hand to avoid pulling in python-multipart for one field.
+    form = parse_qs((await request.body()).decode("utf-8", errors="replace"))
+    pem = form.get("pem", [""])[0].strip() + "\n"
+    try:
+        serialization.load_pem_private_key(pem.encode(), password=None)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(
+            status_code=400, detail=f"Not an unencrypted PEM private key: {exc}"
+        ) from exc
+
+    path = settings.private_key_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(pem)
+    path.chmod(0o600)
+    logger.info("Saved Enable Banking private key to %s", path)
+    # 303 so the browser re-GETs the index (relative, so it stays under the Ingress prefix).
+    return RedirectResponse(url=".", status_code=303)
 
 
 @app.get("/connect", response_class=HTMLResponse)

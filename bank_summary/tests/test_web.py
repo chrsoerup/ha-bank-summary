@@ -39,6 +39,47 @@ def test_index_shows_status_before_anything_is_linked(tmp_path: Path) -> None:
     assert "not linked yet" in resp.text
 
 
+def test_index_flags_missing_private_key(tmp_path: Path) -> None:
+    resp = _client(tmp_path, private_key_path=tmp_path / "missing.pem").get("/")
+    assert resp.status_code == 200
+    assert "Missing" in resp.text
+    assert 'action="private-key"' in resp.text
+
+
+def test_save_private_key_writes_file_and_redirects(
+    tmp_path: Path, rsa_private_key_path: Path
+) -> None:
+    target = tmp_path / "keys" / "key.pem"
+    client = _client(tmp_path, private_key_path=target)
+
+    resp = client.post(
+        "/private-key",
+        data={"pem": rsa_private_key_path.read_text()},
+        follow_redirects=False,
+    )
+
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "."
+    assert target.read_text().strip() == rsa_private_key_path.read_text().strip()
+    assert target.stat().st_mode & 0o777 == 0o600
+    assert "Installed at" in client.get("/").text
+
+
+def test_save_private_key_rejects_garbage(tmp_path: Path) -> None:
+    target = tmp_path / "key.pem"
+    client = _client(tmp_path, private_key_path=target)
+
+    resp = client.post("/private-key", data={"pem": "not a key"})
+
+    assert resp.status_code == 400
+    assert not target.exists()
+
+
+def test_save_private_key_requires_path_option(tmp_path: Path) -> None:
+    resp = _client(tmp_path).post("/private-key", data={"pem": "x"})
+    assert resp.status_code == 400
+
+
 def test_report_path_traversal_is_blocked(tmp_path: Path) -> None:
     secret = tmp_path.parent / "secret.md"
     secret.write_text("top secret")
