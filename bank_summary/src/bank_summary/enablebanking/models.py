@@ -45,12 +45,25 @@ class AccountRef(EBModel):
     currency: str | None = None
 
 
+class SessionAccess(EBModel):
+    valid_until: str | None = None
+
+
 class Session(EBModel):
     session_id: str
-    status: str
+    status: str | None = None
     accounts: list[AccountRef] = []
     aspsp: Aspsp | None = None
+    # The real API nests this under `access.valid_until`, not top-level; keep the flat field too
+    # in case an ASPSP variant returns it there instead.
     valid_until: str | None = None
+    access: SessionAccess | None = None
+
+    @property
+    def consent_valid_until(self) -> str | None:
+        if self.access and self.access.valid_until:
+            return self.access.valid_until
+        return self.valid_until
 
 
 class Balance(EBModel):
@@ -71,6 +84,11 @@ class Transaction(EBModel):
     merchant_category_code: str | None = None
     creditor: Party | None = None
     debtor: Party | None = None
+    # Enable Banking's actual response uses `remittance_information` (a plain list); the
+    # `_unstructured`/`_unstructured_array` names come from the Berlin Group spec docs but were
+    # never observed on the wire against a real ASPSP. Keep all three — which one is populated
+    # varies by bank.
+    remittance_information: list[str] | None = None
     remittance_information_unstructured: str | None = None
     remittance_information_unstructured_array: list[str] | None = None
 
@@ -83,6 +101,8 @@ class Transaction(EBModel):
 
     @property
     def remittance_text(self) -> str | None:
+        if self.remittance_information:
+            return " ".join(self.remittance_information)
         if self.remittance_information_unstructured_array:
             return " ".join(self.remittance_information_unstructured_array)
         return self.remittance_information_unstructured

@@ -1,0 +1,42 @@
+configuration:
+  application_id:
+    name: Enable Banking application ID
+    description: >-
+      The application ID from your Enable Banking application. See DOCS.md for how to register
+      one.
+  private_key_path:
+    name: Private key filename
+    description: >-
+      Filename of the .pem private key, uploaded to /addon_configs/bank_summary/ via the Samba
+      or File editor add-on.
+  aspsp_name:
+    name: Bank name (ASPSP)
+    description: >-
+      Exact ASPSP name as returned by Enable Banking's /aspsps listing for your country. Leave
+      blank until you know it.
+  aspsp_country:
+    name: Bank country
+    description: ISO country code of the bank, e.g. DK.
+  environment:
+    name: Environment
+    description: >-
+      sandbox to test against Enable Banking's mock bank, production once you're ready to link
+      the real bank.
+  redirect_url:
+    name: OAuth redirect URL
+    description: >-
+      The HTTPS webhook URL whitelisted in your Enable Banking application, e.g.
+      https://<tailnet-host>.ts.net/api/webhook/<id>.
+  currency:
+    name: Currency
+    description: ISO currency code used for report totals and sensor units.
+  sync_interval_hours:
+    name: Sync interval (hours)
+    description: >-
+      How often to fetch new transactions. PSD2 allows at most 4 unattended calls/day per
+      account.
+  consent_expiring_soon_days:
+    name: Consent expiry warning window (days)
+    description: >-
+      Days before consent expiry that binary_sensor.bank_consent_expiring flips to on.
+network: {}

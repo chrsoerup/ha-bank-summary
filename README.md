@@ -7,8 +7,9 @@ rules file, publishes live sensors to the HA dashboard, and archives a per-month
 This repo doubles as a Home Assistant **add-on repository** — paste its GitHub URL into
 **Settings → Add-ons → Add-on Store → ⋮ → Repositories** to install the add-on it contains.
 
-The add-on itself lives in [`bank_summary/`](bank_summary/); `DOCS.md` there will carry full
-add-on setup once M3 packaging lands. For now, local/sandbox development is CLI-first:
+The add-on itself lives in [`bank_summary/`](bank_summary/); see
+[`bank_summary/DOCS.md`](bank_summary/DOCS.md) for full add-on installation, bank linking, and
+sensor/report documentation. For local/sandbox development, the same code is CLI-first:
 
 ```sh
 cd bank_summary
@@ -26,7 +27,11 @@ gitignored and live only on the machine running the add-on.
 
 ## Status
 
-- **M1 (core library)** and **M2 (categorisation + report)** are implemented and tested —
-  `sync`, `accounts`, `report` all work standalone against Enable Banking's sandbox.
-- **M3 (add-on packaging)** onward is not yet built — it needs a working Enable Banking
-  application (app ID + private key) and SSH access to the target Home Assistant Green.
+- **M1 (core library)**, **M2 (categorisation + report)**, and **M3 (add-on packaging)** are
+  implemented and tested (31 unit tests, ruff + mypy strict clean): add-on manifest, Dockerfile,
+  Ingress UI (`web.py`), OAuth callback receiver, HA sensor publishing (`ha.py`), and the daily
+  scheduler (`scheduler.py`) are all in place.
+- **Not yet verified against the real thing** — this has only run against fixtures and Enable
+  Banking's sandbox mock. **M4 (real bank, real consent)** needs a working Enable Banking
+  application (app ID + private key) and SSH/Samba access to the target Home Assistant Green to
+  actually install the add-on and complete a live MitID authorisation.

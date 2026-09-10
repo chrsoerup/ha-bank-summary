@@ -38,7 +38,7 @@ TEMPLATE = Template(
 | Date | Counterparty | Amount |
 |---|---|---|
 {% for t in top_expenditures -%}
-| {{ t.booking_date }} | {{ t.counterparty_name or "—" }} | {{ "%.2f"|format(t.amount) }} {{ currency }} |
+| {{ t.booking_date }} | {{ t.counterparty_name or t.remittance_text or "—" }} | {{ "%.2f"|format(t.amount) }} {{ currency }} |
 {% endfor %}
 
 ## Uncategorised ({{ uncategorised|length }})
@@ -87,12 +87,14 @@ class MonthlyAggregate:
         return self.income - self.expenditure
 
 
-def _prev_month(year: int, month: int) -> tuple[int, int]:
+def prev_month(year: int, month: int) -> tuple[int, int]:
     return (year - 1, 12) if month == 1 else (year, month - 1)
 
 
-def aggregate_month(store: Store, year: int, month: int) -> MonthlyAggregate:
-    rows = store.transactions_for_month(year, month)
+def aggregate_month(
+    store: Store, year: int, month: int, account_uid: str | None = None
+) -> MonthlyAggregate:
+    rows = store.transactions_for_month(year, month, account_uid=account_uid)
     agg = MonthlyAggregate(year=year, month=month, rows=rows)
     for row in rows:
         amount = Decimal(row["amount"])
@@ -114,16 +116,18 @@ def _fmt_delta(current: Decimal, previous: Decimal) -> str:
     return f"{sign}{change:.2f} ({sign}{pct:.0f}%)"
 
 
-def render_month(store: Store, year: int, month: int, currency: str = "DKK") -> str:
-    current = aggregate_month(store, year, month)
-    prev_year, prev_month = _prev_month(year, month)
-    previous = aggregate_month(store, prev_year, prev_month)
+def render_month(
+    store: Store, year: int, month: int, currency: str = "DKK", account_uid: str | None = None
+) -> str:
+    current = aggregate_month(store, year, month, account_uid=account_uid)
+    prev_year, prev_month_num = prev_month(year, month)
+    previous = aggregate_month(store, prev_year, prev_month_num, account_uid=account_uid)
 
     last_3 = []
     y, m = year, month
     for _ in range(3):
-        y, m = _prev_month(y, m)
-        last_3.append(aggregate_month(store, y, m))
+        y, m = prev_month(y, m)
+        last_3.append(aggregate_month(store, y, m, account_uid=account_uid))
 
     categories = []
     total_expenditure = current.expenditure or Decimal(1)
@@ -148,6 +152,7 @@ def render_month(store: Store, year: int, month: int, currency: str = "DKK") -> 
         {
             "booking_date": row["booking_date"],
             "counterparty_name": row["counterparty_name"],
+            "remittance_text": row["remittance_text"],
             "amount": Decimal(row["amount"]),
         }
         for row in current.rows
@@ -193,10 +198,15 @@ def render_month(store: Store, year: int, month: int, currency: str = "DKK") -> 
 
 
 def write_report(
-    store: Store, reports_dir: Path, year: int, month: int, currency: str = "DKK"
+    store: Store,
+    reports_dir: Path,
+    year: int,
+    month: int,
+    currency: str = "DKK",
+    account_uid: str | None = None,
 ) -> Path:
     reports_dir.mkdir(parents=True, exist_ok=True)
-    content = render_month(store, year, month, currency=currency)
+    content = render_month(store, year, month, currency=currency, account_uid=account_uid)
     path = reports_dir / f"{year:04d}-{month:02d}.md"
     path.write_text(content)
     return path

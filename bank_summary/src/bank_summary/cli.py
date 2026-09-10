@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import typer
 
 from .config import Settings
@@ -48,14 +50,17 @@ def aspsps(country: str = typer.Option("DK", help="ISO country code")) -> None:
 def connect(
     aspsp_name: str = typer.Argument(...),
     aspsp_country: str = typer.Option("DK"),
+    valid_for_days: int = typer.Option(90, help="Consent duration in days"),
 ) -> None:
     """Start the bank authorisation flow: prints a URL to open in a browser."""
     settings = _settings()
+    valid_until = (datetime.now(UTC) + timedelta(days=valid_for_days)).isoformat()
     with _client(settings) as client:
         resp = client.start_authorization(
             aspsp_name=aspsp_name,
             aspsp_country=aspsp_country,
             redirect_url=settings.redirect_url,
+            valid_until=valid_until,
         )
     typer.echo(f"Open this URL to authorise: {resp.url}")
 
@@ -72,8 +77,8 @@ def exchange(code: str = typer.Argument(...)) -> None:
         store.upsert_session(
             session.session_id,
             session.aspsp.name if session.aspsp else None,
-            session.valid_until,
-            session.status,
+            session.consent_valid_until,
+            session.status or "authorized",
         )
     typer.echo(f"Linked {len(session.accounts)} account(s), session {session.session_id}")
 
@@ -83,7 +88,7 @@ def accounts() -> None:
     """List locally stored accounts."""
     settings = _settings()
     store = _store(settings)
-    for row in store.list_accounts():
+    for row in store.list_accounts(settings.account_uid):
         typer.echo(
             f"{row['uid']}  {row['name'] or ''}  {row['iban'] or ''}  {row['currency'] or ''}"
         )
@@ -109,7 +114,14 @@ def report(month: str = typer.Option(..., help="YYYY-MM")) -> None:
     settings = _settings()
     store = _store(settings)
     year_s, month_s = month.split("-")
-    path = write_report(store, settings.resolved_reports_dir(), int(year_s), int(month_s))
+    path = write_report(
+        store,
+        settings.resolved_reports_dir(),
+        int(year_s),
+        int(month_s),
+        currency=settings.currency,
+        account_uid=settings.account_uid,
+    )
     typer.echo(f"Wrote {path}")
 
 

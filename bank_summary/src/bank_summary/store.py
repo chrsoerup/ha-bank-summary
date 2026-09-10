@@ -228,8 +228,18 @@ class Store:
                 (category, source, dedupe_key_),
             )
 
-    def transactions_for_month(self, year: int, month: int) -> list[sqlite3.Row]:
+    def transactions_for_month(
+        self, year: int, month: int, account_uid: str | None = None
+    ) -> list[sqlite3.Row]:
         prefix = f"{year:04d}-{month:02d}"
+        if account_uid:
+            return list(
+                self._conn.execute(
+                    "SELECT * FROM transactions WHERE booking_date LIKE ? AND account_uid = ? "
+                    "ORDER BY booking_date",
+                    (f"{prefix}%", account_uid),
+                ).fetchall()
+            )
         return list(
             self._conn.execute(
                 "SELECT * FROM transactions WHERE booking_date LIKE ? ORDER BY booking_date",
@@ -242,10 +252,16 @@ class Store:
             self._conn.execute("SELECT * FROM transactions ORDER BY booking_date").fetchall()
         )
 
-    def uncategorised_count(self) -> int:
-        row = self._conn.execute(
-            "SELECT COUNT(*) AS n FROM transactions WHERE category IS NULL"
-        ).fetchone()
+    def uncategorised_count(self, account_uid: str | None = None) -> int:
+        if account_uid:
+            row = self._conn.execute(
+                "SELECT COUNT(*) AS n FROM transactions WHERE category IS NULL AND account_uid = ?",
+                (account_uid,),
+            ).fetchone()
+        else:
+            row = self._conn.execute(
+                "SELECT COUNT(*) AS n FROM transactions WHERE category IS NULL"
+            ).fetchone()
         return int(row["n"])
 
     def start_sync_log(self) -> int:
@@ -297,7 +313,13 @@ class Store:
                 },
             )
 
-    def list_accounts(self) -> list[sqlite3.Row]:
+    def list_accounts(self, account_uid: str | None = None) -> list[sqlite3.Row]:
+        if account_uid:
+            return list(
+                self._conn.execute(
+                    "SELECT * FROM accounts WHERE uid = ?", (account_uid,)
+                ).fetchall()
+            )
         return list(self._conn.execute("SELECT * FROM accounts").fetchall())
 
     def latest_session(self) -> sqlite3.Row | None:

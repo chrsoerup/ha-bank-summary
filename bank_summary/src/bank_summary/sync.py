@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
 
 from .categorize import load_rules, recategorize_all
 from .config import Settings
@@ -31,11 +30,11 @@ def run_sync(settings: Settings, client: EnableBankingClient, store: Store) -> S
     transactions_new = 0
 
     try:
-        account_uids = [row["uid"] for row in store.list_accounts()]
+        account_uids = [row["uid"] for row in store.list_accounts(settings.account_uid)]
 
         for account_uid in account_uids:
             transactions_seen_for_account = 0
-            for txn in client.iter_transactions(account_uid, date_from=None, date_to=date.today()):
+            for txn in client.iter_transactions(account_uid):
                 is_new = store.upsert_transaction(account_uid, txn)
                 transactions_seen_for_account += 1
                 if is_new:

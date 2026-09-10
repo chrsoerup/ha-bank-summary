@@ -14,9 +14,11 @@ class Settings(BaseSettings):
     application_id: str | None = None
     private_key_path: Path | None = None
     redirect_url: str = "http://localhost:8000/callback"
+    account_uid: str | None = None  # restrict sync/report/sensors to a single linked account
     aspsp_name: str | None = None
     aspsp_country: str = "DK"
     environment: str = "sandbox"  # "sandbox" or "production"
+    currency: str = "DKK"
 
     data_dir: Path = Path("data")
     db_path: Path | None = None

@@ -1,0 +1,117 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+import httpx
+import respx
+from fastapi.testclient import TestClient
+
+from bank_summary import web
+from bank_summary.config import Settings
+from bank_summary.store import Store
+
+BASE_URL = "https://api.enablebanking.com"
+
+
+class _FakeScheduler:
+    def shutdown(self, wait: bool = False) -> None:
+        pass
+
+
+def _client(tmp_path: Path, **overrides: Any) -> TestClient:
+    settings = Settings(_env_file=None, data_dir=tmp_path, **overrides)
+    web.app.state.settings = settings
+    web.app.state.scheduler = _FakeScheduler()
+    return TestClient(web.app)
+
+
+def test_health(tmp_path: Path) -> None:
+    resp = _client(tmp_path).get("/health")
+    assert resp.status_code == 200
+    assert resp.text == "ok"
+
+
+def test_index_shows_status_before_anything_is_linked(tmp_path: Path) -> None:
+    resp = _client(tmp_path).get("/")
+    assert resp.status_code == 200
+    assert "never" in resp.text
+    assert "not linked yet" in resp.text
+
+
+def test_report_path_traversal_is_blocked(tmp_path: Path) -> None:
+    secret = tmp_path.parent / "secret.md"
+    secret.write_text("top secret")
+
+    resp = _client(tmp_path).get("/reports/..%2F..%2Fsecret.md")
+    assert resp.status_code == 404
+
+
+def test_report_rejects_non_markdown(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir()
+    (reports_dir / "notes.txt").write_text("hi")
+
+    resp = _client(tmp_path).get("/reports/notes.txt")
+    assert resp.status_code == 404
+
+
+def test_report_serves_existing_markdown(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir()
+    (reports_dir / "2026-05.md").write_text("# Bank summary")
+
+    resp = _client(tmp_path).get("/reports/2026-05.md")
+    assert resp.status_code == 200
+    assert "# Bank summary" in resp.text
+
+
+def test_callback_requires_configured_credentials(tmp_path: Path) -> None:
+    resp = _client(tmp_path).post("/callback", json={"code": "auth-code"})
+    assert resp.status_code == 500
+
+
+@respx.mock
+def test_callback_links_accounts(tmp_path: Path, rsa_private_key_path: Path) -> None:
+    respx.post(f"{BASE_URL}/sessions").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "session_id": "sess-1",
+                "status": "active",
+                "valid_until": "2026-08-01T00:00:00+00:00",
+                "accounts": [
+                    {"uid": "acc-1", "iban": "DK123", "name": "Checking", "currency": "DKK"}
+                ],
+            },
+        )
+    )
+    client = _client(
+        tmp_path,
+        application_id="app-1",
+        private_key_path=rsa_private_key_path,
+        base_url=BASE_URL,
+    )
+
+    resp = client.post("/callback", json={"code": "auth-code", "state": "s"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"linked_accounts": 1, "session_id": "sess-1"}
+
+    store = Store(Settings(_env_file=None, data_dir=tmp_path).resolved_db_path())
+    assert len(store.list_accounts()) == 1
+
+
+@respx.mock
+def test_callback_rejects_bad_code(tmp_path: Path, rsa_private_key_path: Path) -> None:
+    respx.post(f"{BASE_URL}/sessions").mock(return_value=httpx.Response(400, json={}))
+    client = _client(
+        tmp_path,
+        application_id="app-1",
+        private_key_path=rsa_private_key_path,
+        base_url=BASE_URL,
+    )
+
+    resp = client.post("/callback", json={"code": "bad-code"})
+
+    assert resp.status_code == 400
