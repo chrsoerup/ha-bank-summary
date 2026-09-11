@@ -322,6 +322,56 @@ class Store:
             )
         return list(self._conn.execute("SELECT * FROM accounts").fetchall())
 
+    def find_account_by_identification_hash(self, identification_hash: str) -> sqlite3.Row | None:
+        return cast(
+            "sqlite3.Row | None",
+            self._conn.execute(
+                "SELECT * FROM accounts WHERE identification_hash = ?", (identification_hash,)
+            ).fetchone(),
+        )
+
+    def find_account_by_iban(self, iban: str) -> sqlite3.Row | None:
+        return cast(
+            "sqlite3.Row | None",
+            self._conn.execute("SELECT * FROM accounts WHERE iban = ?", (iban,)).fetchone(),
+        )
+
+    def remap_account_uid(self, old_uid: str, new_uid: str) -> None:
+        """Re-key a linked account from `old_uid` to `new_uid` after a consent renewal.
+
+        Enable Banking reissues `uid` on every new consent even for the same physical account
+        (`identification_hash`/`iban` stay stable) — without this, the account and all its
+        transaction history become orphaned under a uid nothing references anymore.
+        """
+        if old_uid == new_uid:
+            return
+        with self.transaction() as conn:
+            rows = conn.execute(
+                "SELECT * FROM transactions WHERE account_uid = ?", (old_uid,)
+            ).fetchall()
+            for row in rows:
+                txn = load_raw_transaction(row)
+                new_key = dedupe_key(new_uid, txn)
+                try:
+                    conn.execute(
+                        "UPDATE transactions SET account_uid = ?, dedupe_key = ? "
+                        "WHERE dedupe_key = ?",
+                        (new_uid, new_key, row["dedupe_key"]),
+                    )
+                except sqlite3.IntegrityError:
+                    # A row already exists under the new uid with the same dedupe key (e.g. it
+                    # was already synced once under the new consent) — drop the stale duplicate.
+                    conn.execute(
+                        "DELETE FROM transactions WHERE dedupe_key = ?", (row["dedupe_key"],)
+                    )
+
+            try:
+                conn.execute("UPDATE accounts SET uid = ? WHERE uid = ?", (new_uid, old_uid))
+            except sqlite3.IntegrityError:
+                # A row for the new uid was already inserted (e.g. by upsert_account) — drop the
+                # now-redundant old row instead.
+                conn.execute("DELETE FROM accounts WHERE uid = ?", (old_uid,))
+
     def latest_session(self) -> sqlite3.Row | None:
         return cast(
             "sqlite3.Row | None",

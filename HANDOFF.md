@@ -1,9 +1,9 @@
 # Handoff — ha-bank-summary (2026-09-11)
 
-Repo: ~/github/ha-bank-summary, public at github.com/chrsoerup/ha-bank-summary. HEAD a31e863 =
-add-on 0.1.6. Plan: ~/.claude/plans/floofy-frolicking-spindle.md.
+Repo: ~/github/ha-bank-summary, public at github.com/chrsoerup/ha-bank-summary. Add-on bumped to
+0.1.7 (M5 changes below) — not yet deployed to the Green. Plan: ~/.claude/plans/floofy-frolicking-spindle.md.
 
-## Status: M1–M4 complete, verified end-to-end against the real bank
+## Status: M1–M4 complete and verified end-to-end; M5 implemented, not yet deployed
 
 The Bank Summary add-on runs on the Home Assistant Green, is linked to Arbejdernes Landsbank via
 a real MitID consent completed *through the add-on* (Ingress `/connect` → Tailscale webhook → HA
@@ -43,19 +43,37 @@ has `bank_summary_oauth_callback` (webhook GET, `local_only: false`). Both as in
 - DOCS: hostname rule (every `_` → `-`), automation needs an `id:` for traces,
   `trigger.query.get('state', '')`.
 
-## Next: M5 polish, in priority order
+## M5, implemented today (code-side, all tested — not yet on the Green)
 
-1. **Stable account selection.** Enable Banking issues *new account uids on every consent*, so
-   `account_uid` breaks at each 90-day renewal. `accounts.identification_hash` (hash of
-   IBAN+currency) is populated and stable — let the option accept it (or auto-remap the
-   configured uid to the new one on `/callback` by matching `identification_hash`).
-2. **"Sync now" button** on the Ingress page (user asked how to trigger a sync; currently only
-   restart or the 24 h interval). Respect the PSD2 4-calls/day limit.
-3. **Consent-expiry notification**: HA automation on `binary_sensor.bank_consent_expiring`
-   (offer to write it; user was interested in Overview/notification behaviour).
-4. DOCS.md: mention `/config` mount, the re-consent → uid change caveat, rules.yaml location
-   on the host; wrap the three long lines edited by sed.
-5. Optional: `ruff format` the 5 pre-existing unformatted files (only `ruff check` is enforced).
+1. **Stable account selection.** `/callback` now matches an incoming account against a
+   previously linked one by `identification_hash` (falling back to IBAN) and, on a uid change,
+   calls `Store.remap_account_uid` (rewrites `accounts.uid` and every `transactions` row's
+   `account_uid`/`dedupe_key`), updates `settings.account_uid` in memory, and persists it via a
+   new `ha.update_account_uid_option` call to the Supervisor API
+   (`POST http://supervisor/addons/self/options`). Re-consent no longer breaks sync or needs a
+   manual option edit.
+2. **"Sync now" button** on the Ingress index page — `POST /sync-now` runs
+   `scheduler.run_daily_job` inline and redirects back; the index also now shows the last sync
+   error inline if one occurred.
+3. **Consent-expiry notification**: sample HA automation added to DOCS.md, triggering on
+   `binary_sensor.bank_consent_expiring` → `on` (docs-only; the add-on can't own HA automations
+   itself).
+4. **DOCS.md touch-ups**: noted Samba is blocked on installs like the Green (use the Ingress
+   paste form), documented the auto-remap-on-reconsent behaviour, added a troubleshooting entry
+   for when the auto-remap can't find a match (set `account_uid` manually from the linked-accounts
+   list).
+
+New tests in `test_store.py` (remap, identification_hash/IBAN lookups), `test_web.py` (callback
+remap end-to-end, sync-now, last-sync-error display), `test_ha.py` (Supervisor option POST).
+`ruff check`, `mypy --strict`, and `pytest` all clean (48 tests).
+
+### Still to do
+
+- Deploy 0.1.7 to the Green (push, update the add-on, verify the paste-PEM form still works after
+  update — 0.1.4's update wiped `/addon_configs` once, watch for a repeat).
+- Verify the account_uid auto-remap for real at the next consent renewal (2026-12-10) — it's only
+  been exercised by tests so far, not against a live Enable Banking response.
+- Optional: `ruff format` the 5 pre-existing unformatted files (only `ruff check` is enforced).
 
 ## Working-with-the-user notes
 

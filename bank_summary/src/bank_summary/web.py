@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import html
 import logging
+import sqlite3
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -23,7 +24,9 @@ from pydantic import BaseModel
 
 from .config import Settings
 from .enablebanking.client import EnableBankingClient
-from .scheduler import start_scheduler
+from .enablebanking.models import AccountRef
+from .ha import update_account_uid_option
+from .scheduler import run_daily_job, start_scheduler
 from .store import Store
 
 logger = logging.getLogger(__name__)
@@ -98,10 +101,14 @@ def index() -> str:
     <head><title>Bank Summary</title></head>
     <body>
       <h1>Bank Summary</h1>
-      <p>Last sync: {last_sync["finished_at"] if last_sync else "never"}</p>
+      <p>Last sync: {last_sync["finished_at"] if last_sync else "never"}
+        {_last_sync_error(last_sync)}</p>
       <p>Consent expires: {session["valid_until"] if session else "not linked yet"}</p>
       <p>Uncategorised transactions: {uncategorised}</p>
       <p><a href="connect">Connect / re-authorise bank account</a></p>
+      <form method="post" action="sync-now">
+        <button type="submit">Sync now</button>
+      </form>
       <h2>Linked accounts</h2>
       <ul>{account_items or "<li>None yet</li>"}</ul>
       <h2>Reports</h2>
@@ -111,6 +118,12 @@ def index() -> str:
     </body>
     </html>
     """
+
+
+def _last_sync_error(last_sync: sqlite3.Row | None) -> str:
+    if last_sync is None or not last_sync["error"]:
+        return ""
+    return f'<br><strong>Last sync failed:</strong> {html.escape(last_sync["error"])}'
 
 
 def _private_key_section(settings: Settings) -> str:
@@ -218,6 +231,18 @@ def connect() -> str:
     )
 
 
+@app.post("/sync-now")
+def sync_now() -> RedirectResponse:
+    """Runs the same sync -> categorise -> publish -> report pipeline as the daily job, on demand.
+
+    Runs inline rather than via the scheduler: it reuses `run_daily_job` unchanged (so behaviour
+    stays identical to the scheduled run, including its own error handling and logging), and the
+    add-on's syncs are infrequent/fast enough that blocking the Ingress request is acceptable.
+    """
+    run_daily_job(_settings())
+    return RedirectResponse(url=".", status_code=303)
+
+
 @app.get("/reports/{name}", response_class=PlainTextResponse)
 def get_report(name: str) -> str:
     settings = _settings()
@@ -226,6 +251,40 @@ def get_report(name: str) -> str:
     if path.suffix != ".md" or not path.is_file():
         raise HTTPException(status_code=404, detail="Report not found")
     return path.read_text()
+
+
+def _remap_if_renewed(store: Store, settings: Settings, account: AccountRef) -> None:
+    """Re-keys a previously linked account to its new post-renewal uid, in place.
+
+    Enable Banking reissues every account's `uid` on each MitID consent renewal, but
+    `identification_hash` (falling back to `iban`) stays stable across renewals — use it to
+    recognise "this is the same account, just under a new uid" and fix up the DB and the
+    `account_uid` option before they go stale (see HANDOFF.md M5 priority 1).
+    """
+    existing = None
+    if account.identification_hash:
+        existing = store.find_account_by_identification_hash(account.identification_hash)
+    if existing is None and account.iban:
+        existing = store.find_account_by_iban(account.iban)
+    if existing is None or existing["uid"] == account.uid:
+        return
+
+    old_uid = existing["uid"]
+    store.remap_account_uid(old_uid, account.uid)
+    logger.info("Remapped account_uid %s -> %s (consent renewal)", old_uid, account.uid)
+
+    if settings.account_uid == old_uid:
+        settings.account_uid = account.uid
+        if settings.supervisor_token:
+            try:
+                update_account_uid_option(settings.supervisor_token, account.uid)
+            except httpx.HTTPError:
+                logger.exception(
+                    "Failed to persist renewed account_uid %s to the add-on options; it will "
+                    "revert to %s on next restart unless updated manually",
+                    account.uid,
+                    old_uid,
+                )
 
 
 @app.post("/callback")
@@ -251,6 +310,7 @@ def callback(payload: CallbackPayload) -> dict[str, object]:
                 ) from exc
 
             for account in session.accounts:
+                _remap_if_renewed(store, settings, account)
                 store.upsert_account(account, session.aspsp.name if session.aspsp else None)
             store.upsert_session(
                 session.session_id,

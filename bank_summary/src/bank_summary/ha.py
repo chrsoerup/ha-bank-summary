@@ -123,6 +123,19 @@ def build_states(
     return states
 
 
+def update_account_uid_option(supervisor_token: str, account_uid: str) -> None:
+    """Persists a new `account_uid` add-on option via the Supervisor API.
+
+    Used after a consent renewal reissues the linked account's uid (see
+    `store.remap_account_uid`) — without this, the option reverts to the stale uid on the next
+    add-on restart even though the DB has already been re-keyed to the new one.
+    """
+    headers = {"Authorization": f"Bearer {supervisor_token}"}
+    with httpx.Client(base_url="http://supervisor", headers=headers, timeout=10.0) as http:
+        resp = http.post("/addons/self/options", json={"options": {"account_uid": account_uid}})
+        resp.raise_for_status()
+
+
 def publish_states(states: list[HAState], ha_api_base: str, supervisor_token: str) -> int:
     """POSTs each state to the Supervisor proxy. Returns the number that failed to publish —
     one bad entity shouldn't stop the rest from updating."""

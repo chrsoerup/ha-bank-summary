@@ -3,8 +3,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx
+import respx
+
 from bank_summary.enablebanking.models import AccountRef, Amount, Party, Transaction
-from bank_summary.ha import build_states
+from bank_summary.ha import build_states, update_account_uid_option
 from bank_summary.store import Store
 
 
@@ -70,3 +73,19 @@ def test_balances_only_published_when_supplied(tmp_path: Path) -> None:
     assert len(balance_states) == 1
     assert balance_states[0].entity_id == "sensor.bank_balance_acc_1"
     assert balance_states[0].state == "1234.56"
+
+
+@respx.mock
+def test_update_account_uid_option_posts_to_supervisor() -> None:
+    route = respx.post("http://supervisor/addons/self/options").mock(
+        return_value=httpx.Response(200, json={"result": "ok"})
+    )
+
+    update_account_uid_option("token-1", "acc-2")
+
+    import json
+
+    assert route.called
+    request = route.calls.last.request
+    assert request.headers["Authorization"] == "Bearer token-1"
+    assert json.loads(request.content) == {"options": {"account_uid": "acc-2"}}

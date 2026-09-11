@@ -97,6 +97,35 @@ def test_report_rejects_non_markdown(tmp_path: Path) -> None:
     assert resp.status_code == 404
 
 
+def test_index_shows_sync_now_button(tmp_path: Path) -> None:
+    resp = _client(tmp_path).get("/")
+    assert resp.status_code == 200
+    assert 'action="sync-now"' in resp.text
+
+
+def test_index_shows_last_sync_error(tmp_path: Path) -> None:
+    store = Store(Settings(_env_file=None, data_dir=tmp_path).resolved_db_path())
+    log_id = store.start_sync_log()
+    store.finish_sync_log(log_id, transactions_seen=0, transactions_new=0, error="boom")
+    store.close()
+
+    resp = _client(tmp_path).get("/")
+
+    assert "Last sync failed" in resp.text
+    assert "boom" in resp.text
+
+
+def test_sync_now_is_a_noop_without_a_linked_session(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    resp = client.post("/sync-now", follow_redirects=False)
+
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "."
+    store = Store(Settings(_env_file=None, data_dir=tmp_path).resolved_db_path())
+    assert store.last_sync() is None  # skipped before creating a sync_log row
+
+
 def test_report_serves_existing_markdown(tmp_path: Path) -> None:
     reports_dir = tmp_path / "reports"
     reports_dir.mkdir()
@@ -193,6 +222,70 @@ def test_connect_reports_missing_private_key_file(tmp_path: Path) -> None:
 
     assert resp.status_code == 400
     assert "Private key file not found" in resp.text
+
+
+@respx.mock
+def test_callback_remaps_account_uid_on_identification_hash_match(
+    tmp_path: Path, rsa_private_key_path: Path
+) -> None:
+    from bank_summary.enablebanking.models import AccountRef, Amount, Transaction
+
+    store = Store(Settings(_env_file=None, data_dir=tmp_path).resolved_db_path())
+    store.upsert_account(
+        AccountRef(uid="acc-1", iban="DK123", identification_hash="idh-1", name="Checking"),
+        "Some Bank",
+    )
+    store.upsert_transaction(
+        "acc-1",
+        Transaction(
+            entry_reference="e-1",
+            booking_date="2026-01-05",
+            transaction_amount=Amount(amount="42.00", currency="DKK"),
+            credit_debit_indicator="DBIT",
+            status="BOOK",
+        ),
+    )
+    store.close()
+
+    respx.post(f"{BASE_URL}/sessions").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "session_id": "sess-2",
+                "status": "active",
+                "valid_until": "2026-08-01T00:00:00+00:00",
+                "accounts": [
+                    {
+                        "uid": "acc-2",
+                        "iban": "DK123",
+                        "identification_hash": "idh-1",
+                        "name": "Checking",
+                        "currency": "DKK",
+                    }
+                ],
+            },
+        )
+    )
+    client = _client(
+        tmp_path,
+        application_id="app-1",
+        private_key_path=rsa_private_key_path,
+        base_url=BASE_URL,
+        account_uid="acc-1",
+    )
+
+    resp = client.post("/callback", json={"code": "auth-code", "state": "s"})
+
+    assert resp.status_code == 200
+
+    store = Store(Settings(_env_file=None, data_dir=tmp_path).resolved_db_path())
+    accounts = store.list_accounts()
+    assert [row["uid"] for row in accounts] == ["acc-2"]
+    transactions = store.all_transactions()
+    assert len(transactions) == 1
+    assert transactions[0]["account_uid"] == "acc-2"
+
+    assert web.app.state.settings.account_uid == "acc-2"
 
 
 def test_index_warns_when_account_uid_matches_no_linked_account(tmp_path: Path) -> None:

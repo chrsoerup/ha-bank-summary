@@ -32,14 +32,19 @@ Home Assistant dashboard, and archives a per-month Markdown report.
      `/addon_configs/<repo-hash>_bank_summary/`, e.g. `enablebanking_private_key.pem`. You don't need to copy
      the file over yourself: after starting the add-on, open its **Web UI** and paste the key's
      contents into the *Enable Banking private key* form (it's written owner-read-only). If you'd
-     rather upload the file directly, the **Samba share** or **File editor** add-on works too.
+     rather upload the file directly, the **Samba share** or **File editor** add-on works too —
+     though Samba is blocked on some installs (e.g. Home Assistant Green), in which case the
+     Ingress paste form is the only option.
    - `aspsp_country` — ISO country code of your bank (e.g. `DK`).
    - `redirect_url` — the webhook URL from step 2 above.
    - `environment` — `sandbox` while testing, `production` once you're ready to link the real
      bank.
    - `account_uid` — optional. If your consent links more than one account (e.g. a joint account
      alongside your own), set this to the one `uid` from `bank-summary accounts` you actually want
-     synced, categorised, and published as sensors; leave blank to use all linked accounts.
+     synced, categorised, and published as sensors; leave blank to use all linked accounts. Enable
+     Banking reissues every account's `uid` on each re-consent (see below), but the add-on detects
+     this by IBAN and updates the option automatically — you don't need to re-set it after
+     renewing consent.
 4. Start the add-on and check its log for `Starting Bank Summary on port 8099`.
 5. Find your bank's exact ASPSP name: open **Web UI** (Ingress) and check the add-on log after a
    sync attempt, or run `aspsps --country DK` via the CLI on a dev machine against the same
@@ -56,7 +61,10 @@ The authorisation flow needs a browser and MitID, so it can't run inside the add
 4. The automation below forwards those to the add-on's `/callback` endpoint, which exchanges the
    code for a session and stores your linked account(s).
 5. Repeat every ~90–180 days when consent expires — watch
-   `binary_sensor.bank_consent_expiring`.
+   `binary_sensor.bank_consent_expiring` (see below for a notification automation). Re-consenting
+   issues a new `uid` for each account, but syncing keeps working without manual changes: the
+   add-on matches the renewed account against the one you already linked (by IBAN) and updates
+   the `account_uid` option for you if it was set.
 
 ```yaml
 # automations.yaml
@@ -87,6 +95,32 @@ rest_command:
 The Tailscale add-on must be running with `Serve` enabled so `https://<tailnet-host>.ts.net`
 reaches HA Core on port 443. `local_only: false` is required because Tailscale traffic doesn't
 look "local" to HA, and `GET` must be explicitly allowed since webhooks default to POST-only.
+
+### Getting notified before consent expires
+
+`binary_sensor.bank_consent_expiring` turns `on` once `consent_expires` is within
+`consent_expiring_soon_days` (default 14) — add an automation so re-consenting doesn't depend on
+remembering to check the dashboard:
+
+```yaml
+# automations.yaml
+- id: bank_summary_consent_expiring
+  alias: Bank Summary — consent expiring soon
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.bank_consent_expiring
+      to: "on"
+  action:
+    - service: notify.mobile_app_<your_phone>  # or notify.persistent_notification
+      data:
+        title: Bank Summary
+        message: >-
+          Bank consent expires {{ states('sensor.bank_consent_expires') }} — redo the linking
+          flow (see DOCS.md § Linking your bank).
+```
+
+This fires once per renewal cycle: the sensor only flips `off` again after a fresh consent pushes
+`consent_expires` back out beyond the threshold.
 
 ## Sensors
 
@@ -133,7 +167,9 @@ The monthly report lists uncategorised transactions with a ready-to-paste rule s
 ## Reports
 
 Markdown reports land in `/data/reports/YYYY-MM.md` (inside the add-on's persistent storage) and
-are listed on the add-on's **Web UI** (Ingress) page.
+are listed on the add-on's **Web UI** (Ingress) page. The same page has a **Sync now** button to
+run a sync outside the `sync_interval_hours` schedule — useful right after linking an account or
+after editing `rules.yaml`.
 
 ## Data & backups
 
@@ -149,3 +185,7 @@ knowing if backups sync off-device, since the private key travels with them.
   consent.
 - **Webhook never fires**: confirm Tailscale Serve is active and the automation's
   `local_only: false` / `allowed_methods: [GET]` are set — these are off by default.
+- **Index page warns `account_uid` matches none of the linked accounts**: this means the
+  IBAN-based auto-remap on re-consent (see "Linking your bank") didn't find a match — usually
+  because `account_uid` was never set before the first re-consent, or the account's IBAN changed.
+  Pick the correct `uid` from the linked-accounts list on the Web UI and set it manually.
