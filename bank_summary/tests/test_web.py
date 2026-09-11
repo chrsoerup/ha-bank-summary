@@ -193,3 +193,18 @@ def test_connect_reports_missing_private_key_file(tmp_path: Path) -> None:
 
     assert resp.status_code == 400
     assert "Private key file not found" in resp.text
+
+
+def test_index_warns_when_account_uid_matches_no_linked_account(tmp_path: Path) -> None:
+    from bank_summary.enablebanking.models import AccountRef
+
+    store = Store(Settings(_env_file=None, data_dir=tmp_path).resolved_db_path())
+    store.upsert_account(AccountRef(uid="acc-1", iban="DK123", name="Checking"), "B")
+    store.close()
+
+    resp = _client(tmp_path, account_uid="acc-2").get("/")
+
+    assert "acc-1" in resp.text
+    assert "matches none of the linked accounts" in resp.text
+    assert "← synced" not in _client(tmp_path, account_uid="acc-2").get("/").text
+    assert "← synced" in _client(tmp_path, account_uid="acc-1").get("/").text

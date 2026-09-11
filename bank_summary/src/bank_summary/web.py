@@ -68,6 +68,7 @@ def index() -> str:
         last_sync = store.last_sync()
         session = store.latest_session()
         uncategorised = store.uncategorised_count()
+        accounts = store.list_accounts()
         reports_dir = settings.resolved_reports_dir()
         reports = (
             sorted((p.name for p in reports_dir.glob("*.md")), reverse=True)
@@ -78,6 +79,20 @@ def index() -> str:
         store.close()
 
     report_items = "".join(f'<li><a href="reports/{name}">{name}</a></li>' for name in reports)
+    # Flag which linked account(s) the account_uid option actually selects — a mismatch
+    # silently yields an empty sync, so make it visible here.
+    account_items = "".join(
+        f"<li><code>{html.escape(row['uid'])}</code> — {html.escape(row['name'] or '?')}"
+        f" ({html.escape(row['iban'] or 'no IBAN')})"
+        f"{' <strong>← synced</strong>' if row['uid'] == settings.account_uid else ''}</li>"
+        for row in accounts
+    )
+    if settings.account_uid and not any(r["uid"] == settings.account_uid for r in accounts):
+        account_items += (
+            f"<li><strong>Warning:</strong> option <code>account_uid</code> = "
+            f"<code>{html.escape(settings.account_uid)}</code> matches none of the linked "
+            f"accounts, so nothing will be synced.</li>"
+        )
     return f"""
     <html>
     <head><title>Bank Summary</title></head>
@@ -87,6 +102,8 @@ def index() -> str:
       <p>Consent expires: {session["valid_until"] if session else "not linked yet"}</p>
       <p>Uncategorised transactions: {uncategorised}</p>
       <p><a href="connect">Connect / re-authorise bank account</a></p>
+      <h2>Linked accounts</h2>
+      <ul>{account_items or "<li>None yet</li>"}</ul>
       <h2>Reports</h2>
       <ul>{report_items or "<li>None yet</li>"}</ul>
       <h2>Enable Banking private key</h2>
