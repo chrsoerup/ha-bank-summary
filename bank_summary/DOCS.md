@@ -60,7 +60,8 @@ The authorisation flow needs a browser and MitID, so it can't run inside the add
 
 ```yaml
 # automations.yaml
-- alias: Bank Summary — OAuth callback
+- id: bank_summary_oauth_callback  # required for traces to be recorded
+  alias: Bank Summary — OAuth callback
   trigger:
     - platform: webhook
       webhook_id: "<the-random-id-from-your-redirect_url>"
@@ -70,9 +71,11 @@ The authorisation flow needs a browser and MitID, so it can't run inside the add
     - service: rest_command.bank_summary_callback
       data:
         code: "{{ trigger.query.code }}"
-        state: "{{ trigger.query.state }}"
+        state: "{{ trigger.query.get('state', '') }}"
 
 # configuration.yaml
+# <add-on-hostname> is shown as "Hostname" on the add-on's Info page, e.g. 2a94ed89-bank-summary
+# (the add-on slug with every "_" replaced by "-").
 rest_command:
   bank_summary_callback:
     url: "http://<add-on-hostname>:8099/callback"
