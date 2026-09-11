@@ -1,4 +1,4 @@
-# Seed rules for Danish accounts. Copied to /addon_config/rules.yaml on first run — edit the
+# Seed rules for Danish accounts. Copied to /config/rules.yaml on first run — edit the
 # copy, not this file. Evaluated top-to-bottom; the first matching rule wins.
 #
 # Matchers: counterparty_regex, remittance_regex, mcc (list of merchant category codes),

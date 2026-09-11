@@ -29,7 +29,7 @@ Home Assistant dashboard, and archives a per-month Markdown report.
 3. Set:
    - `application_id` — your Enable Banking application ID.
    - `private_key_path` — the filename the `.pem` will be stored under in
-     `/addon_configs/bank_summary/`, e.g. `enablebanking_private_key.pem`. You don't need to copy
+     `/addon_configs/<repo-hash>_bank_summary/`, e.g. `enablebanking_private_key.pem`. You don't need to copy
      the file over yourself: after starting the add-on, open its **Web UI** and paste the key's
      contents into the *Enable Banking private key* form (it's written owner-read-only). If you'd
      rather upload the file directly, the **Samba share** or **File editor** add-on works too.
@@ -117,7 +117,7 @@ entities:
 
 ## Categorisation rules
 
-`/addon_configs/bank_summary/rules.yaml` is seeded from a starter rule set on first run and is
+`/addon_configs/<repo-hash>_bank_summary/rules.yaml` is seeded from a starter rule set on first run and is
 yours to edit — no restart needed, rules are re-read on the next sync. Rules are evaluated
 top-to-bottom, first match wins:
 
@@ -137,7 +137,7 @@ are listed on the add-on's **Web UI** (Ingress) page.
 
 ## Data & backups
 
-`/addon_configs/bank_summary/` (your `.pem` and `rules.yaml`) and the add-on's `/data` (the
+`/addon_configs/<repo-hash>_bank_summary/` (your `.pem` and `rules.yaml`) and the add-on's `/data` (the
 SQLite database and reports) are both included in Home Assistant backups by default — worth
 knowing if backups sync off-device, since the private key travels with them.
 
