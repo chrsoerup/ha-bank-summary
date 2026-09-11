@@ -171,11 +171,19 @@ def connect() -> str:
         private_key_path=str(settings.private_key_path),
         base_url=settings.base_url,
     ) as client:
-        resp = client.start_authorization(
-            aspsp_name=settings.aspsp_name,  # type: ignore[arg-type]
-            aspsp_country=settings.aspsp_country,
-            redirect_url=settings.redirect_url,
-        )
+        try:
+            resp = client.start_authorization(
+                aspsp_name=settings.aspsp_name,  # type: ignore[arg-type]
+                aspsp_country=settings.aspsp_country,
+                redirect_url=settings.redirect_url,
+            )
+        except httpx.HTTPStatusError as exc:
+            # Surface Enable Banking's validation message (wrong ASPSP name, unwhitelisted
+            # redirect_url, ...) instead of a bare 500.
+            raise HTTPException(
+                status_code=400,
+                detail=f"Enable Banking rejected the request: {exc.response.text}",
+            ) from exc
 
     return (
         f'<html><body><p>Open this URL on a device on your tailnet and complete the MitID '

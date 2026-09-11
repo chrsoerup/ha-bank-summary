@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import httpx
@@ -74,3 +75,20 @@ def test_requests_carry_bearer_jwt(rsa_private_key_path: Path) -> None:
 
     auth_header = route.calls[0].request.headers["authorization"]
     assert auth_header.startswith("Bearer ")
+
+
+@respx.mock
+def test_start_authorization_always_sends_valid_until(rsa_private_key_path: Path) -> None:
+    # /auth returns 422 when access.valid_until is absent, so the client must default it.
+    route = respx.post(f"{BASE_URL}/auth").mock(
+        return_value=httpx.Response(200, json={"url": "https://bank/login"})
+    )
+    client = EnableBankingClient(
+        application_id="app-123", private_key_path=str(rsa_private_key_path), base_url=BASE_URL
+    )
+
+    client.start_authorization("Some Bank", "DK", "https://ha/webhook")
+
+    body = json.loads(route.calls[0].request.content)
+    assert body["access"]["valid_until"]
+    assert body["aspsp"] == {"name": "Some Bank", "country": "DK"}

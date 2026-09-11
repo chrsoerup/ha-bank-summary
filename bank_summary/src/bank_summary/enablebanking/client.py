@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterator
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from types import TracebackType
 from typing import Any, cast
 
@@ -75,8 +75,11 @@ class EnableBankingClient:
         valid_until: str | None = None,
         state: str | None = None,
     ) -> StartAuthorizationResponse:
+        # /auth returns 422 without access.valid_until; default to the 90-day PSD2 maximum.
+        if valid_until is None:
+            valid_until = (datetime.now(UTC) + timedelta(days=90)).isoformat()
         body = {
-            "access": {"valid_until": valid_until} if valid_until else {},
+            "access": {"valid_until": valid_until},
             "aspsp": {"name": aspsp_name, "country": aspsp_country},
             "state": state or uuid.uuid4().hex,
             "redirect_url": redirect_url,

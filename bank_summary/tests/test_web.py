@@ -156,3 +156,25 @@ def test_callback_rejects_bad_code(tmp_path: Path, rsa_private_key_path: Path) -
     resp = client.post("/callback", json={"code": "bad-code"})
 
     assert resp.status_code == 400
+
+
+@respx.mock
+def test_connect_surfaces_enable_banking_validation_error(
+    tmp_path: Path, rsa_private_key_path: Path
+) -> None:
+    respx.post(f"{BASE_URL}/auth").mock(
+        return_value=httpx.Response(422, json={"message": "redirect_url not whitelisted"})
+    )
+    client = _client(
+        tmp_path,
+        application_id="app-1",
+        private_key_path=rsa_private_key_path,
+        aspsp_name="Some Bank",
+        redirect_url="https://ha/webhook",
+        base_url=BASE_URL,
+    )
+
+    resp = client.get("/connect")
+
+    assert resp.status_code == 400
+    assert "redirect_url not whitelisted" in resp.text
