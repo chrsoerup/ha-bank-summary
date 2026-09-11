@@ -165,6 +165,11 @@ def connect() -> str:
         raise HTTPException(
             status_code=400, detail=f"Add-on options not configured yet: {', '.join(missing)}"
         )
+    if not settings.private_key_path.is_file():  # type: ignore[union-attr]
+        raise HTTPException(
+            status_code=400,
+            detail="Private key file not found — paste it on the add-on's main page first",
+        )
 
     with EnableBankingClient(
         application_id=settings.application_id,  # type: ignore[arg-type]
@@ -186,8 +191,10 @@ def connect() -> str:
             ) from exc
 
     return (
-        f'<html><body><p>Open this URL on a device on your tailnet and complete the MitID '
-        f'login:</p><p><a href="{resp.url}">{resp.url}</a></p></body></html>'
+        # target=_blank: the bank refuses to render inside HA's Ingress iframe.
+        f"<html><body><p>Open this URL on a device on your tailnet and complete the MitID "
+        f'login:</p><p><a href="{resp.url}" target="_blank" rel="noopener">{resp.url}</a></p>'
+        f"</body></html>"
     )
 
 

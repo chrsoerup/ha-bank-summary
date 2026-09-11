@@ -178,3 +178,18 @@ def test_connect_surfaces_enable_banking_validation_error(
 
     assert resp.status_code == 400
     assert "redirect_url not whitelisted" in resp.text
+
+
+def test_connect_reports_missing_private_key_file(tmp_path: Path) -> None:
+    client = _client(
+        tmp_path,
+        application_id="app-1",
+        private_key_path=tmp_path / "missing.pem",
+        aspsp_name="Some Bank",
+        redirect_url="https://ha/webhook",
+    )
+
+    resp = client.get("/connect")
+
+    assert resp.status_code == 400
+    assert "Private key file not found" in resp.text
