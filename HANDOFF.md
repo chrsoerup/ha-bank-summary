@@ -1,9 +1,10 @@
 # Handoff — ha-bank-summary (2026-09-11)
 
-Repo: ~/github/ha-bank-summary, public at github.com/chrsoerup/ha-bank-summary. Add-on bumped to
-0.1.7 (M5 changes below) — not yet deployed to the Green. Plan: ~/.claude/plans/floofy-frolicking-spindle.md.
+Repo: ~/github/ha-bank-summary, public at github.com/chrsoerup/ha-bank-summary. HEAD 4e1d1ce =
+add-on 0.1.7 (M5 changes below), pushed and deployed to the Green. Plan:
+~/.claude/plans/floofy-frolicking-spindle.md.
 
-## Status: M1–M4 complete and verified end-to-end; M5 implemented, not yet deployed
+## Status: M1–M5 complete and verified end-to-end on the Green
 
 The Bank Summary add-on runs on the Home Assistant Green, is linked to Arbejdernes Landsbank via
 a real MitID consent completed *through the add-on* (Ingress `/connect` → Tailscale webhook → HA
@@ -43,7 +44,7 @@ has `bank_summary_oauth_callback` (webhook GET, `local_only: false`). Both as in
 - DOCS: hostname rule (every `_` → `-`), automation needs an `id:` for traces,
   `trigger.query.get('state', '')`.
 
-## M5, implemented today (code-side, all tested — not yet on the Green)
+## M5, implemented and deployed today (0.1.7, confirmed on the Green)
 
 1. **Stable account selection.** `/callback` now matches an incoming account against a
    previously linked one by `identification_hash` (falling back to IBAN) and, on a uid change,
@@ -67,12 +68,23 @@ New tests in `test_store.py` (remap, identification_hash/IBAN lookups), `test_we
 remap end-to-end, sync-now, last-sync-error display), `test_ha.py` (Supervisor option POST).
 `ruff check`, `mypy --strict`, and `pytest` all clean (48 tests).
 
+Deployed and verified 2026-09-11: update to 0.1.7 went cleanly (private key and `account_uid`
+option both survived the update this time, no re-paste needed like 0.1.4), startup sync ran
+(272 transactions, report written, 9 sensors published), and the Ingress page shows the Sync now
+button with the correct account still marked synced.
+
 ### Still to do
 
-- Deploy 0.1.7 to the Green (push, update the add-on, verify the paste-PEM form still works after
-  update — 0.1.4's update wiped `/addon_configs` once, watch for a repeat).
 - Verify the account_uid auto-remap for real at the next consent renewal (2026-12-10) — it's only
   been exercised by tests so far, not against a live Enable Banking response.
+- **Revisit editing `rules.yaml` from the Green.** File editor only browses HA's `/config`, not
+  the add-on's persistent folder at `/addon_configs/2a94ed89_bank_summary/`, and Samba/SSH are
+  both blocked for this user (see below) — so there's currently no way to edit `rules.yaml` (fix
+  uncategorised transactions) without a workaround. Proposed and user declined a bespoke
+  paste-into-Ingress editor (same pattern as the private-key form) as "a bit too hardcoded" —
+  revisit with a less special-cased approach, e.g. a generic small file browser/editor for the
+  add-on's config dir, or check whether Studio Code Server / another add-on can be pointed at
+  `/addon_configs` directly.
 - Optional: `ruff format` the 5 pre-existing unformatted files (only `ruff check` is enforced).
 
 ## Working-with-the-user notes
