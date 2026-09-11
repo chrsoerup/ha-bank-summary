@@ -38,7 +38,14 @@ def run_daily_job(settings: Settings) -> None:
             private_key_path=str(settings.private_key_path),
             base_url=settings.base_url,
         ) as client:
-            run_sync(settings, client, store)
+            result = run_sync(settings, client, store)
+            logger.info(
+                "Sync done: %d account(s), %d transaction(s) seen, %d new, %d recategorised",
+                result.accounts_synced,
+                result.transactions_seen,
+                result.transactions_new,
+                result.recategorized,
+            )
             for account in store.list_accounts(settings.account_uid):
                 try:
                     for balance in client.get_balances(account["uid"]):
@@ -56,8 +63,11 @@ def run_daily_job(settings: Settings) -> None:
             currency=settings.currency,
             account_uid=settings.account_uid,
         )
+        logger.info("Wrote report for %04d-%02d", today.year, today.month)
 
-        if settings.supervisor_token:
+        if not settings.supervisor_token:
+            logger.warning("SUPERVISOR_TOKEN not set; skipping HA state publish")
+        else:
             states = build_states(
                 store,
                 currency=settings.currency,
@@ -68,6 +78,8 @@ def run_daily_job(settings: Settings) -> None:
             failures = publish_states(states, settings.ha_api_base, settings.supervisor_token)
             if failures:
                 logger.warning("%d/%d HA states failed to publish", failures, len(states))
+            else:
+                logger.info("Published %d HA state(s)", len(states))
     except Exception:
         logger.exception("Scheduled sync failed")
     finally:

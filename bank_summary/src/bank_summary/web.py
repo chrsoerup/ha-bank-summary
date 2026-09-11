@@ -31,6 +31,9 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # uvicorn only configures its own loggers; without this, the app's INFO lines (sync
+    # results, published states) never reach the add-on log — only tracebacks do.
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
     settings = Settings()
     app.state.settings = settings
     app.state.scheduler = start_scheduler(settings)
