@@ -171,6 +171,18 @@ are listed on the add-on's **Web UI** (Ingress) page. The same page has a **Sync
 run a sync outside the `sync_interval_hours` schedule — useful right after linking an account or
 after editing `rules.yaml`.
 
+## Monthly digest
+
+On the first successful sync after a month ends, the add-on posts a **persistent notification**
+(the bell in HA's sidebar) with that month's income, expenditure and net vs. the month before,
+the top five spending categories, and the uncategorised count. It is sent once per month; if
+the add-on was off on the 1st, or the notification call failed, it goes out on the next sync.
+Months with no transactions (e.g. before the account was linked) are skipped.
+
+The previous month's report is re-rendered on every sync, so transactions that post a few days
+into the new month with last month's booking date still end up in it. The digest itself is
+not resent, so it may differ slightly from the final report.
+
 ## Data & backups
 
 `/addon_configs/<repo-hash>_bank_summary/` (your `.pem` and `rules.yaml`) and the add-on's `/data` (the

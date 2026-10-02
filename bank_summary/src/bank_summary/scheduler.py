@@ -13,9 +13,10 @@ from datetime import date, datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from .config import Settings
+from .digest import build_digest, send_persistent_notification
 from .enablebanking.client import EnableBankingClient
 from .ha import build_states, publish_states
-from .report import write_report
+from .report import prev_month, write_report
 from .store import Store
 from .sync import run_sync
 
@@ -54,16 +55,20 @@ def run_daily_job(settings: Settings) -> None:
                 except Exception:
                     logger.exception("Failed to fetch balance for account %s", account["uid"])
 
+        # The previous month is re-rendered too: transactions keep posting with last month's
+        # booking date for a few days into the new one, and nothing else would pick them up.
         today = date.today()
-        write_report(
-            store,
-            settings.resolved_reports_dir(),
-            today.year,
-            today.month,
-            currency=settings.currency,
-            account_uid=settings.account_uid,
-        )
-        logger.info("Wrote report for %04d-%02d", today.year, today.month)
+        last_year, last_month = prev_month(today.year, today.month)
+        for year, month in ((last_year, last_month), (today.year, today.month)):
+            write_report(
+                store,
+                settings.resolved_reports_dir(),
+                year,
+                month,
+                currency=settings.currency,
+                account_uid=settings.account_uid,
+            )
+            logger.info("Wrote report for %04d-%02d", year, month)
 
         if not settings.supervisor_token:
             logger.warning("SUPERVISOR_TOKEN not set; skipping HA state publish")
@@ -80,10 +85,40 @@ def run_daily_job(settings: Settings) -> None:
                 logger.warning("%d/%d HA states failed to publish", failures, len(states))
             else:
                 logger.info("Published %d HA state(s)", len(states))
+            send_monthly_digest(settings, store, last_year, last_month)
     except Exception:
         logger.exception("Scheduled sync failed")
     finally:
         store.close()
+
+
+def send_monthly_digest(settings: Settings, store: Store, year: int, month: int) -> None:
+    """Sends the digest for a closed month once. Only called after a successful sync, so the
+    digest never goes out based on stale data."""
+    assert settings.supervisor_token
+    period = f"{year:04d}-{month:02d}"
+    if store.digest_sent(period):
+        return
+    digest = build_digest(
+        store, year, month, currency=settings.currency, account_uid=settings.account_uid
+    )
+    if digest is None:
+        logger.info("No transactions for %s; no digest to send", period)
+        return
+    title, message = digest
+    try:
+        send_persistent_notification(
+            settings.ha_api_base,
+            settings.supervisor_token,
+            f"bank_summary_digest_{year:04d}_{month:02d}",
+            title,
+            message,
+        )
+    except Exception:
+        logger.exception("Failed to send digest for %s; will retry on next sync", period)
+        return
+    store.mark_digest_sent(period)
+    logger.info("Sent monthly digest for %s", period)
 
 
 def start_scheduler(settings: Settings) -> BackgroundScheduler:

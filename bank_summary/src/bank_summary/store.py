@@ -67,6 +67,11 @@ CREATE TABLE IF NOT EXISTS sync_log (
     transactions_new INTEGER DEFAULT 0,
     error TEXT
 );
+
+CREATE TABLE IF NOT EXISTS digests (
+    period TEXT PRIMARY KEY,
+    sent_at TEXT NOT NULL
+);
 """
 
 
@@ -290,6 +295,16 @@ class Store:
             "sqlite3.Row | None",
             self._conn.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 1").fetchone(),
         )
+
+    def digest_sent(self, period: str) -> bool:
+        row = self._conn.execute("SELECT 1 FROM digests WHERE period = ?", (period,)).fetchone()
+        return row is not None
+
+    def mark_digest_sent(self, period: str) -> None:
+        with self.transaction() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO digests (period, sent_at) VALUES (?, ?)", (period, _now())
+            )
 
     def upsert_session(
         self, session_id: str, aspsp_name: str | None, valid_until: str | None, status: str
