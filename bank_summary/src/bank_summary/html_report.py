@@ -221,15 +221,8 @@ def _trend_points(
     return points
 
 
-TEMPLATE = Environment(autoescape=True).from_string(
+BASE_CSS = Markup(
     """\
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bank summary — {{ month_name }} {{ year }}</title>
-<style>
 .viz-root {
   color-scheme: light;
   --page: #f9f9f7; --surface-1: #fcfcfb; --border: rgba(11,11,11,0.10);
@@ -313,7 +306,19 @@ footer { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
   .chart .label { font-size: 22px; } .chart .value { font-size: 20px; }
   .chart .tick { font-size: 19px; }
 }
-</style>
+"""
+)
+
+TEMPLATE = Environment(autoescape=True).from_string(
+    """\
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bank summary — {{ month_name }} {{ year }}</title>
+<style>
+{{ css }}</style>
 </head>
 <body>
 <div class="viz-root"><div class="wrap">
@@ -392,7 +397,8 @@ footer { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
 <section class="card">
   <h2>Uncategorised ({{ uncategorised|length }})</h2>
   {% if uncategorised %}
-  <p class="sub">Add a rule to <code>rules.yaml</code> to categorise similar transactions.</p>
+  <p class="sub"><a href="../categorise">Categorise these →</a> — pick a category per
+    merchant and it applies to past and future transactions.</p>
   <table>
     <tr><th>Date</th><th>Counterparty</th><th class="num">Amount</th></tr>
     {% for u in uncategorised %}
@@ -463,4 +469,5 @@ def render_month_html(
         trend=trend,
         trend_chart=_trend_chart(trend, currency),
         fmt=_fmt,
+        css=BASE_CSS,
     )

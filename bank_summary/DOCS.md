@@ -151,18 +151,43 @@ entities:
 
 ## Categorisation rules
 
-`/addon_configs/<repo-hash>_bank_summary/rules.yaml` is seeded from a starter rule set on first run and is
-yours to edit — no restart needed, rules are re-read on the next sync. Rules are evaluated
-top-to-bottom, first match wins:
+Transactions are categorised by two rule sets, evaluated top-to-bottom, first match wins:
+
+1. **Your rules**: `/addon_configs/<repo-hash>_bank_summary/rules.yaml`, seeded on first run.
+   Always evaluated first, so they override anything built in.
+2. **Built-in Danish rules**: ship with the add-on and update with it. They cover supermarkets,
+   restaurants and cafés, fuel and EV charging, public transport and parking, housing, utilities,
+   telecom, streaming and subscriptions, insurance, health, shopping, home & DIY, leisure, travel,
+   cash, pension and savings, union/A-kasse, fees and tax, plus a merchant-category-code fallback
+   when the bank provides MCCs.
+
+### Categorise page
+
+The fastest way to deal with what's left: **Bank Summary → Categorise** (linked from the main page
+and from each report's Uncategorised section). It groups uncategorised transactions by merchant,
+largest amounts first, after stripping the noise Danish banks add ("Dankort-nota", "VISA/DANKORT",
+"MobilePay", "Overførsel til", card masks, dates, terminal and reference numbers). So
+"Dankort-nota KAFFEBAREN 1111 KBH" and "Dankort-nota KAFFEBAREN 2222 KBH" become one
+**KAFFEBAREN KBH** group.
+
+Type or pick a category for any group and press **Save rules**. Each one becomes a rule appended to
+your `rules.yaml`, and every past transaction is re-categorised immediately, as will future ones.
+The **Matches** field is the text the rule looks for (whole words, case-insensitive). Shorten it to
+widen the rule, e.g. `NETTO KBH` → `NETTO` for every branch.
+
+### Writing rules by hand
 
 ```yaml
-- category: Groceries
-  match: { counterparty_regex: "(?i)netto|rema 1000|f[øo]tex|bilka|lidl|coop|meny" }
+- category: Restaurants & cafés
+  match: { text_regex: "(?i)kaffebaren" }
 - category: Salary
-  match: { credit_debit_indicator: CRDT, counterparty_regex: "(?i)your-employer" }
+  match: { credit_debit_indicator: CRDT, text_regex: "(?i)your-employer" }
 ```
 
-The monthly report lists uncategorised transactions with a ready-to-paste rule stub for each.
+Matchers: `text_regex` (counterparty, remittance text, or the cleaned-up merchant name),
+`counterparty_regex`, `remittance_regex`, `mcc`, `bank_transaction_code`,
+`credit_debit_indicator` (`CRDT`/`DBIT`), `amount_min` / `amount_max`. Rules are re-read on every
+sync; no restart needed.
 
 ## Reports
 

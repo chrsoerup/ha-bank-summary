@@ -74,4 +74,4 @@ def test_uncategorised_rule_stub_is_valid_yaml(tmp_path: Path) -> None:
     stub_yaml = "\n".join(line[2:] for line in stub_lines)  # strip the fence's own 2-space indent
 
     parsed = yaml.safe_load(stub_yaml)
-    assert parsed == [{"category": "TODO", "match": {"counterparty_regex": "(?i)Shop"}}]
+    assert parsed == [{"category": "TODO", "match": {"text_regex": r"(?i)(?<!\w)SHOP(?!\w)"}}]

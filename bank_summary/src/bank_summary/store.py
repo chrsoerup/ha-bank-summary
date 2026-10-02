@@ -257,17 +257,26 @@ class Store:
             self._conn.execute("SELECT * FROM transactions ORDER BY booking_date").fetchall()
         )
 
+    # categorize() stores the literal "Uncategorised" for no match; NULL only means "not yet
+    # categorised" (before the first sync's recategorise pass). Both count as uncategorised.
+    _UNCATEGORISED_WHERE = "(category IS NULL OR category = 'Uncategorised')"
+
     def uncategorised_count(self, account_uid: str | None = None) -> int:
+        return len(self.uncategorised_rows(account_uid))
+
+    def uncategorised_rows(self, account_uid: str | None = None) -> list[sqlite3.Row]:
+        query = f"SELECT * FROM transactions WHERE {self._UNCATEGORISED_WHERE}"
+        params: tuple[str, ...] = ()
         if account_uid:
-            row = self._conn.execute(
-                "SELECT COUNT(*) AS n FROM transactions WHERE category IS NULL AND account_uid = ?",
-                (account_uid,),
-            ).fetchone()
-        else:
-            row = self._conn.execute(
-                "SELECT COUNT(*) AS n FROM transactions WHERE category IS NULL"
-            ).fetchone()
-        return int(row["n"])
+            query += " AND account_uid = ?"
+            params = (account_uid,)
+        return list(self._conn.execute(query + " ORDER BY booking_date DESC", params).fetchall())
+
+    def categories_in_use(self) -> list[str]:
+        rows = self._conn.execute(
+            f"SELECT DISTINCT category FROM transactions WHERE NOT {self._UNCATEGORISED_WHERE}"
+        ).fetchall()
+        return sorted(r["category"] for r in rows)
 
     def start_sync_log(self) -> int:
         with self.transaction() as conn:

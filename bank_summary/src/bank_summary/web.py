@@ -22,12 +22,14 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from pydantic import BaseModel
 
+from .categorise_page import render_categorise_page
+from .categorize import append_rule, known_categories, load_rules
 from .config import Settings
 from .enablebanking.client import EnableBankingClient
 from .enablebanking.models import AccountRef
 from .ha import update_account_uid_option
 from .html_report import render_month_html
-from .scheduler import run_daily_job, start_scheduler
+from .scheduler import refresh_after_rules_change, run_daily_job, start_scheduler
 from .store import Store
 
 logger = logging.getLogger(__name__)
@@ -109,7 +111,8 @@ def index() -> str:
       <p>Last sync: {last_sync["finished_at"] if last_sync else "never"}
         {_last_sync_error(last_sync)}</p>
       <p>Consent expires: {session["valid_until"] if session else "not linked yet"}</p>
-      <p>Uncategorised transactions: {uncategorised}</p>
+      <p>Uncategorised transactions: {uncategorised}
+        {'— <a href="categorise">categorise them</a>' if uncategorised else ""}</p>
       <p><a href="connect">Connect / re-authorise bank account</a></p>
       <form method="post" action="sync-now">
         <button type="submit">Sync now</button>
@@ -246,6 +249,57 @@ def sync_now() -> RedirectResponse:
     """
     run_daily_job(_settings())
     return RedirectResponse(url=".", status_code=303)
+
+
+@app.get("/categorise", response_class=HTMLResponse)
+def categorise_page(saved: int | None = None, recategorised: int = 0) -> str:
+    settings = _settings()
+    store = Store(settings.resolved_db_path())
+    try:
+        categories = sorted(
+            set(known_categories(load_rules(settings.resolved_rules_path())))
+            | set(store.categories_in_use())
+        )
+        return render_categorise_page(
+            store,
+            categories,
+            account_uid=settings.account_uid,
+            saved=saved,
+            recategorised=recategorised,
+        )
+    finally:
+        store.close()
+
+
+@app.post("/categorise")
+async def save_categories(request: Request) -> RedirectResponse:
+    """Turns each filled-in (match text, category) pair into a rule, then re-categorises."""
+    settings = _settings()
+    form = parse_qs((await request.body()).decode("utf-8", errors="replace"))
+    pairs = []
+    for name, values in form.items():
+        if not name.startswith("category_"):
+            continue
+        category = values[0].strip()
+        match_text = form.get(f"match_{name.removeprefix('category_')}", [""])[0].strip()
+        if category and len(match_text) >= 2 and category.lower() != "uncategorised":
+            pairs.append((category, match_text))
+
+    rules_path = settings.resolved_rules_path()
+    for category, match_text in pairs:
+        append_rule(rules_path, category, match_text)
+        logger.info("Added rule %r -> %s", match_text, category)
+
+    changed = 0
+    if pairs:
+        store = Store(settings.resolved_db_path())
+        try:
+            changed = refresh_after_rules_change(settings, store)
+        finally:
+            store.close()
+    return RedirectResponse(
+        url=f"categorise?saved={len(pairs)}&recategorised={changed}", status_code=303
+    )
 
 
 @app.get("/report/{period}", response_class=HTMLResponse)

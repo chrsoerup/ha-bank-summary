@@ -1,0 +1,95 @@
+# Built-in rules for Danish accounts. Ships with the add-on and is evaluated AFTER your own
+# /config/rules.yaml, so anything you define there wins. Don't edit this copy — it is replaced
+# on every add-on update. To override a rule, add one for the same merchant to rules.yaml.
+#
+# text_regex matches the counterparty, the remittance text, or the normalised merchant
+# (payment prefixes like "Dankort-nota", card masks, dates and reference numbers removed).
+# Regexes are single-quoted so backslashes are literal.
+
+# ---- Income (credits only) -------------------------------------------------------------
+- category: Salary
+  match: { credit_debit_indicator: CRDT, text_regex: '(?i)\bl[øo]n(overf[øo]rsel)?\b|\bloen\b|feriepenge|ferietill[æa]g' }
+- category: Benefits
+  match: { credit_debit_indicator: CRDT, text_regex: '(?i)udbetaling\s*danmark|b[øo]rne-?\s*og\s*ungeydelse|b[øo]rnecheck|boligst[øo]tte|statens\s*uddannelsesst[øo]tte' }
+- category: Tax
+  match: { credit_debit_indicator: CRDT, text_regex: '(?i)\bskat\b|skattestyrelsen|overskydende\s*skat' }
+
+# ---- Everyday ---------------------------------------------------------------------------
+- category: Groceries
+  match: { text_regex: '(?i)\bnetto\b|rema\s*1000|\brema\b|f[øo]tex|\bbilka\b|\blidl\b|\baldi\b|coop\s*365|365\s*discount|kvickly|superbrugsen|dagli.?\s*brugsen|\bbrugsen\b|\bmeny\b|\bspar\b(?!\s*nord)|min\s*k[øo]bmand|l[øo]vbjerg|\birma\b|nemlig\.?com|7-?eleven' }
+- category: Restaurants & cafés
+  match: { text_regex: '(?i)mcdonald|burger\s*king|sunset\s*boulevard|max\s*burgers|joe\s*&?\s*the\s*juice|espresso\s*house|baresso|starbucks|lagkagehuset|emmerys|\bwolt\b|just\s*eat|hungry\.dk|domino|pizza|\bcaf[eé]\b|restaurant|bageri?\b|sushi|kebab|grill\b' }
+- category: Fuel & charging
+  match: { text_regex: '(?i)circle\s*k|\bq8\b|\bf24\b|\bshell\b|uno-?x|\bingo\b|\bok\s+(plus|benzin|tank)|\bclever\b|\bmonta\b|spirii|e\.?on\s*drive|tesla\s*supercharg' }
+- category: Transport
+  match: { text_regex: '(?i)\bdsb\b|rejsekort|\bmovia\b|\bmetro(selskabet)?\b|midttrafik|fynbus|nordjyllands\s*trafik|\barriva\b|flixbus|letbane|easypark|apcoa|parkman|onepark|parkering|brobizz|storeb[æa]lt|[øo]resundsbro|sund\s*&\s*b[æa]lt|\btaxa\b|dantaxi|\buber\b|\bbolt\b' }
+
+# ---- Home & bills -----------------------------------------------------------------------
+- category: Housing
+  match: { text_regex: '(?i)boligselskab|boligforening|husleje|ejerforening|andelsbolig|grundejerforening|realkredit|totalkredit|brf\s*kredit|dlr\s*kredit|ejendomsskat' }
+- category: Utilities
+  match: { text_regex: '(?i)[øo]rsted|andel\s*energi|\bradius\b|\bewii\b|\bnorlys\b|\bevida\b|vandselskab|\bhofor\b|aarhus\s*vand|forsyning|fjernvarme|varmev[æa]rk|vestforbr[æa]nding|renovation|energi\s*fyn|seas-?nve|\bnrgi\b|\bok\s*el\b|vindst[øo]d|modstr[øo]m' }
+- category: Telecom & internet
+  match: { text_regex: '(?i)\btdc\b|yousee|telenor|\btelia\b|\bhi3g\b|\boister\b|\bcbb\b|lebara|lycamobile|\bstofa\b|\bwaoo\b|\bhiper\b|fastspeed|\bnuuday\b|\bduka\b' }
+- category: Subscriptions
+  match: { text_regex: '(?i)netflix|spotify|\bhbo\b|\bmax\.com\b|disney\s*(plus|\+)|viaplay|tv\s*2\s*play|apple\.com/bill|itunes|youtube|amazon\s*prime|prime\s*video|storytel|mofibo|podimo|nextory|chatgpt|openai|anthropic|claude\.ai|dropbox|icloud|google\s*(one|storage|play)|microsoft\s*(365|\*)|\bdr\s*licens' }
+- category: Insurance
+  match: { text_regex: '(?i)forsikring|\btryg\b|topdanmark|alm\.?\s*brand|\bcodan\b|gjensidige|privatsikring|k[øo]bst[æa]dernes|sygeforsikring' }
+- category: Home & DIY
+  match: { text_regex: '(?i)\bikea\b|\bjysk\b|bauhaus|\bsilvan\b|\bstark\b|xl-?byg|harald\s*nyborg|jem\s*&?\s*fix|\bbygma\b|\bilva\b|\bbolia\b|bilka\s*home|\bhabitat\b' }
+
+# ---- Shopping, health, leisure ----------------------------------------------------------
+- category: Health & pharmacy
+  match: { text_regex: '(?i)apotek|tandl[æa]ge|\bl[æa]ge(hus)?\b|fysioterapi|kiropraktor|optiker|synoptik|louis\s*nielsen|profil\s*optik|psykolog' }
+- category: Personal care
+  match: { text_regex: '(?i)\bmatas\b|\bnormal\b|fris[øo]r|barber|neglesalon|\bspa\b' }
+- category: Shopping
+  match: { text_regex: '(?i)\bmagasin\b|\billum\b|\bsalling\b|h\s*&\s*m\b|\bzara\b|zalando|\bboozt\b|amazon|\bebay\b|\btemu\b|\bshein\b|aliexpress|elgiganten|\bpower\b|proshop|komplett|coolshop|intersport|sport\s*24|sportmaster|bog\s*&\s*id[eé]|\bimerco\b|s[øo]strene\s*grene|flying\s*tiger|jack\s*&\s*jones|\bvero\s*moda\b|\bbr\s*leg|\bfona\b' }
+- category: Leisure
+  match: { text_regex: '(?i)fitness\s*world|\bsats\b|puregym|fitness\s*dk|\btivoli\b|\bzoo\b|biograf|nordisk\s*film|\bkino\b|cinemaxx|lalandia|legoland|billetlugen|ticketmaster|billetnet|\blego\b|steam\s*games|playstation|nintendo|xbox' }
+- category: Travel
+  match: { text_regex: '(?i)\bsas\b|norwegian|ryanair|easyjet|booking\.com|airbnb|hotels\.com|expedia|momondo|scandic|\bhotel\b|\bhertz\b|\bavis\b|\bsixt\b|europcar|\bspies\b|apollo\s*rejser|\btui\b|\bfinnair\b|lufthansa|\bklm\b' }
+
+# ---- Money ------------------------------------------------------------------------------
+- category: Cash
+  match: { text_regex: '(?i)h[æa]veautomat|kontanth[æa]vning|\batm\b|udbetaling\s*automat' }
+- category: Pension & savings
+  match: { text_regex: '(?i)\bpfa\b|pensiondanmark|industriens\s*pension|\bdanica\b|\bvelliv\b|mp\s*pension|akademikerpension|nordnet|saxo\s*bank|opsparing|aldersopsparing' }
+- category: Union & unemployment insurance
+  match: { text_regex: '(?i)a-?kasse|fagforening|\bdj[øo]f\b|\bkrifa\b|\blederne\b|dansk\s*metal|ida\s*a-?kasse|\bhk\s*danmark' }
+- category: Fees & interest
+  match: { text_regex: '(?i)gebyr|\brenter?\b|kortgebyr|[åa]rsgebyr|overtr[æa]k' }
+- category: Tax
+  match: { credit_debit_indicator: DBIT, text_regex: '(?i)\bskat\b|skattestyrelsen|restskat|motorstyrelsen|v[æa]gtafgift' }
+
+# ---- Fallback: merchant category codes, when the bank provides them ---------------------
+- category: Groceries
+  match: { mcc: ['5411', '5422', '5441', '5451', '5462', '5499'] }
+- category: Restaurants & cafés
+  match: { mcc: ['5812', '5813', '5814'] }
+- category: Fuel & charging
+  match: { mcc: ['5541', '5542', '5552'] }
+- category: Transport
+  match: { mcc: ['4111', '4112', '4121', '4131', '4784', '7523'] }
+- category: Travel
+  match: { mcc: ['3000', '4511', '4722', '7011', '7512'] }
+- category: Health & pharmacy
+  match: { mcc: ['5912', '8011', '8021', '8042', '8043', '8099'] }
+- category: Personal care
+  match: { mcc: ['5977', '7230', '7298'] }
+- category: Telecom & internet
+  match: { mcc: ['4814', '4899'] }
+- category: Utilities
+  match: { mcc: ['4900'] }
+- category: Insurance
+  match: { mcc: ['6300'] }
+- category: Subscriptions
+  match: { mcc: ['5815', '5816', '5817', '5818'] }
+- category: Home & DIY
+  match: { mcc: ['5200', '5211', '5251', '5712', '5719'] }
+- category: Shopping
+  match: { mcc: ['5311', '5651', '5661', '5691', '5699', '5732', '5942', '5945', '5999'] }
+- category: Leisure
+  match: { mcc: ['7832', '7941', '7991', '7997', '7999'] }
+- category: Cash
+  match: { mcc: ['6010', '6011'] }

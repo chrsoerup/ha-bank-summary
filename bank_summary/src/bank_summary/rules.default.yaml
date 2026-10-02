@@ -1,18 +1,12 @@
-# Seed rules for Danish accounts. Copied to /config/rules.yaml on first run — edit the
-# copy, not this file. Evaluated top-to-bottom; the first matching rule wins.
+# Your categorisation rules. Evaluated top-to-bottom, first match wins, and BEFORE the
+# built-in Danish rule set that ships with the add-on (supermarkets, fuel, streaming,
+# utilities, insurance, ...). Add rules here for anything personal, or to override a
+# built-in one. The add-on's Categorise page appends rules to this file for you.
 #
-# Matchers: counterparty_regex, remittance_regex, mcc (list of merchant category codes),
+# Matchers: text_regex (counterparty, remittance text, or the cleaned-up merchant name),
+# counterparty_regex, remittance_regex, mcc (list of merchant category codes),
 # bank_transaction_code (string or list), credit_debit_indicator (CRDT/DBIT),
 # amount_min / amount_max (compared against the absolute amount).
 
-- category: Groceries
-  match: { counterparty_regex: "(?i)netto|rema 1000|f[øo]tex|bilka|lidl|coop|meny" }
-
 - category: Salary
-  match: { credit_debit_indicator: CRDT, counterparty_regex: "(?i)laerdal" }
-
-- category: Transport
-  match: { mcc: ["4111", "4121"], counterparty_regex: "(?i)\\bdsb\\b|rejsekort" }
-
-- category: Rent
-  match: { amount_min: 5000, counterparty_regex: "(?i)boligselskab" }
+  match: { credit_debit_indicator: CRDT, text_regex: "(?i)your-employer" }

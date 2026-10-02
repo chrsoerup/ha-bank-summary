@@ -12,6 +12,7 @@ from datetime import date, datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
+from .categorize import load_rules, recategorize_all
 from .config import Settings
 from .digest import build_digest, send_persistent_notification
 from .enablebanking.client import EnableBankingClient
@@ -90,6 +91,35 @@ def run_daily_job(settings: Settings) -> None:
         logger.exception("Scheduled sync failed")
     finally:
         store.close()
+
+
+def refresh_after_rules_change(settings: Settings, store: Store) -> int:
+    """Applies the current rules to every stored transaction and refreshes the outputs that
+    depend on categories (Markdown reports, HA sensors) without a bank sync. Returns how many
+    transactions left the uncategorised pile."""
+    before = store.uncategorised_count(settings.account_uid)
+    recategorize_all(store, load_rules(settings.resolved_rules_path()))
+    categorised = before - store.uncategorised_count(settings.account_uid)
+    today = date.today()
+    for year, month in (prev_month(today.year, today.month), (today.year, today.month)):
+        write_report(
+            store,
+            settings.resolved_reports_dir(),
+            year,
+            month,
+            currency=settings.currency,
+            account_uid=settings.account_uid,
+        )
+    if settings.supervisor_token:
+        states = build_states(
+            store,
+            currency=settings.currency,
+            consent_expiring_soon_days=settings.consent_expiring_soon_days,
+            account_uid=settings.account_uid,
+        )
+        publish_states(states, settings.ha_api_base, settings.supervisor_token)
+    logger.info("Rules changed: %d transaction(s) categorised", categorised)
+    return categorised
 
 
 def send_monthly_digest(settings: Settings, store: Store, year: int, month: int) -> None:
