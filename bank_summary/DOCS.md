@@ -166,8 +166,15 @@ The monthly report lists uncategorised transactions with a ready-to-paste rule s
 
 ## Reports
 
-Markdown reports land in `/data/reports/YYYY-MM.md` (inside the add-on's persistent storage) and
-are listed on the add-on's **Web UI** (Ingress) page. The same page has a **Sync now** button to
+Each month on the add-on's **Web UI** (Ingress) page opens a visual report: income, expenditure
+and net tiles with the change vs. the previous month, spending by category (with last month as
+a marker), a 12-month income-vs-expenditure trend, the largest expenditures, and uncategorised
+transactions with rule stubs. It is rendered live from the database, so it always reflects the
+latest sync and your current `rules.yaml`, and it follows HA's light/dark mode. Every chart has
+a **Show as table** toggle.
+
+A Markdown copy is also archived in `/data/reports/YYYY-MM.md` (inside the add-on's persistent
+storage) and linked from the same page. The same page has a **Sync now** button to
 run a sync outside the `sync_interval_hours` schedule — useful right after linking an account or
 after editing `rules.yaml`.
 

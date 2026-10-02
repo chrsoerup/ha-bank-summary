@@ -7,6 +7,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 from jinja2 import Template
 
@@ -116,9 +117,10 @@ def _fmt_delta(current: Decimal, previous: Decimal) -> str:
     return f"{sign}{change:.2f} ({sign}{pct:.0f}%)"
 
 
-def render_month(
+def month_context(
     store: Store, year: int, month: int, currency: str = "DKK", account_uid: str | None = None
-) -> str:
+) -> dict[str, Any]:
+    """Everything a monthly report shows, shared by the Markdown and HTML renderers."""
     current = aggregate_month(store, year, month, account_uid=account_uid)
     prev_year, prev_month_num = prev_month(year, month)
     previous = aggregate_month(store, prev_year, prev_month_num, account_uid=account_uid)
@@ -178,7 +180,9 @@ def render_month(
     last_sync = store.last_sync()
     session = store.latest_session()
 
-    return str(TEMPLATE.render(
+    return dict(
+        year=year,
+        month=month,
         period=f"{year:04d}-{month:02d}",
         currency=currency,
         income=current.income,
@@ -194,7 +198,15 @@ def render_month(
         accounts=accounts,
         synced_at=last_sync["finished_at"] if last_sync else None,
         consent_expires=session["valid_until"] if session else None,
-    ))
+        previous_categories=dict(previous.category_totals),
+    )
+
+
+def render_month(
+    store: Store, year: int, month: int, currency: str = "DKK", account_uid: str | None = None
+) -> str:
+    context = month_context(store, year, month, currency=currency, account_uid=account_uid)
+    return str(TEMPLATE.render(**context))
 
 
 def write_report(

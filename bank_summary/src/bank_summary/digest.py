@@ -64,7 +64,7 @@ def build_digest(
     if uncategorised:
         lines += ["", f"{uncategorised} uncategorised transaction(s) — see the report."]
 
-    lines += ["", f"Full report: **Bank Summary** in the sidebar → `{period}.md`."]
+    lines += ["", f"Charts and full breakdown: **Bank Summary** in the sidebar → {period}."]
     return f"Bank summary — {period}", "\n".join(lines)
 
 

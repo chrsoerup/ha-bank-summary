@@ -26,6 +26,7 @@ from .config import Settings
 from .enablebanking.client import EnableBankingClient
 from .enablebanking.models import AccountRef
 from .ha import update_account_uid_option
+from .html_report import render_month_html
 from .scheduler import run_daily_job, start_scheduler
 from .store import Store
 
@@ -81,7 +82,11 @@ def index() -> str:
     finally:
         store.close()
 
-    report_items = "".join(f'<li><a href="reports/{name}">{name}</a></li>' for name in reports)
+    report_items = "".join(
+        f'<li><a href="report/{Path(name).stem}">{Path(name).stem}</a>'
+        f' <small>(<a href="reports/{name}">markdown</a>)</small></li>'
+        for name in reports
+    )
     # Flag which linked account(s) the account_uid option actually selects — a mismatch
     # silently yields an empty sync, so make it visible here.
     account_items = "".join(
@@ -241,6 +246,37 @@ def sync_now() -> RedirectResponse:
     """
     run_daily_job(_settings())
     return RedirectResponse(url=".", status_code=303)
+
+
+@app.get("/report/{period}", response_class=HTMLResponse)
+def get_html_report(period: str) -> str:
+    """Visual report for `YYYY-MM`, rendered live from the DB (not from the .md archive)."""
+    try:
+        year, month = (int(part) for part in period.split("-"))
+        if not 1 <= month <= 12:
+            raise ValueError(period)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Report not found") from exc
+
+    settings = _settings()
+    store = Store(settings.resolved_db_path())
+    try:
+
+        def has_month(y: int, m: int) -> bool:
+            return bool(store.transactions_for_month(y, m, account_uid=settings.account_uid))
+
+        if not has_month(year, month):
+            raise HTTPException(status_code=404, detail="No transactions for that month")
+        return render_month_html(
+            store,
+            year,
+            month,
+            currency=settings.currency,
+            account_uid=settings.account_uid,
+            has_month=has_month,
+        )
+    finally:
+        store.close()
 
 
 @app.get("/reports/{name}", response_class=PlainTextResponse)
